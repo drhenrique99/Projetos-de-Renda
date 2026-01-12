@@ -216,7 +216,7 @@ export const Dashboard: React.FC = () => {
                    {!logoError ? (
                      <img 
                        src="https://drive.google.com/thumbnail?id=1h6k-YRGt1ZoFwIpKa-7rPEzTqBCU2Kl3&sz=w1000" 
-                       alt="Trader Lendário" 
+                       alt="Vip Lendario" 
                        className="h-full w-full object-cover transition-transform group-hover:scale-110"
                        referrerPolicy="no-referrer"
                        onError={() => setLogoError(true)}
@@ -230,7 +230,7 @@ export const Dashboard: React.FC = () => {
                  
                  <div className="flex flex-col">
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-base font-bold text-slate-800 leading-none">Trader Lendário</span>
+                      <span className="text-base font-bold text-slate-800 leading-none">Vip Lendario</span>
                       <Verified className="w-4 h-4 text-blue-500 fill-blue-50" />
                     </div>
                  </div>
