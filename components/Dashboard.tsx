@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Filter, RefreshCcw, FileSpreadsheet, Link as LinkIcon, AlertCircle, CheckCircle, Lock, Settings, Save, X, EyeOff, Share2, LogIn, ShieldCheck, LogOut, Youtube, Instagram, Send, Calendar, ChevronLeft, ChevronRight, Verified } from 'lucide-react';
+import { Filter, RefreshCcw, FileSpreadsheet, Link as LinkIcon, AlertCircle, CheckCircle, Settings, Save, X, Share2, LogOut, Youtube, Instagram, Send, Calendar, ChevronLeft, ChevronRight, Verified } from 'lucide-react';
 import { BetRecord, FilterState } from '../types';
 import { generateMockData, calculateKPIs, fetchSheetData } from '../services/dataService';
 import { KPICards } from './KPICards';
 import { Charts } from './Charts';
 import { AnalysisModal } from './AnalysisModal';
 
-const ADMIN_PASSWORD = "admin123"; // Senha alterada. Use esta senha para acessar.
 const ITEMS_PER_PAGE = 20; // Quantidade de itens por página
 
 export const Dashboard: React.FC = () => {
@@ -14,6 +13,9 @@ export const Dashboard: React.FC = () => {
   const [data, setData] = useState<BetRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBet, setSelectedBet] = useState<BetRecord | null>(null);
+  
+  // UI State for Logo
+  const [logoError, setLogoError] = useState(false);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -24,16 +26,8 @@ export const Dashboard: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionSuccess, setConnectionSuccess] = useState(false);
 
-  // Setup / Login Mode State
-  const [isSetupMode, setIsSetupMode] = useState(true); // Se true, mostra tela de login/setup
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-
-  // Admin / Configuration State (Inside Dashboard)
+  // Configuration State (Toggle for URL input)
   const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [adminAuthInput, setAdminAuthInput] = useState('');
-  const [showAdminAuth, setShowAdminAuth] = useState(false);
-  const [authError, setAuthError] = useState(false);
 
   // Filtering state
   const [filters, setFilters] = useState<FilterState>({
@@ -50,18 +44,14 @@ export const Dashboard: React.FC = () => {
     const storedUrl = localStorage.getItem('betanalytics_sheet_url');
 
     if (sharedUrl) {
-      // Prioridade: Link compartilhado
       setSheetUrl(sharedUrl);
       loadData(sharedUrl);
-      setIsSetupMode(false);
     } else if (storedUrl) {
-      // Fallback: LocalStorage
       setSheetUrl(storedUrl);
       loadData(storedUrl);
-      setIsSetupMode(false);
     } else {
-      // Nenhum dado encontrado: Mostrar tela de Setup/Login
-      setIsSetupMode(true);
+      // Se não houver dados, abre o menu de configuração automaticamente e para o loading
+      setIsConfigOpen(true);
       setLoading(false);
     }
   }, []);
@@ -76,10 +66,13 @@ export const Dashboard: React.FC = () => {
       setData(records);
       setConnectionSuccess(true);
       setLoading(false);
+      // Fecha a config se carregou com sucesso
+      setIsConfigOpen(false); 
     } catch (err: any) {
       setConnectionError(err.message || "Erro ao carregar dados.");
       setConnectionSuccess(false);
       setLoading(false);
+      setIsConfigOpen(true); // Mantém aberto em caso de erro
     } finally {
       setIsConnecting(false);
     }
@@ -90,46 +83,13 @@ export const Dashboard: React.FC = () => {
     setCurrentPage(1);
   }, [filters]);
 
-  // --- HANDLERS PARA A TELA DE LOGIN INICIAL ---
-  const handleInitialSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-
-    if (loginPassword !== ADMIN_PASSWORD) {
-      setLoginError('Senha administrativa incorreta.');
-      return;
-    }
-
-    if (!sheetUrl.trim()) {
-      setLoginError('Por favor, insira a URL da planilha.');
-      return;
-    }
-
-    setIsConnecting(true);
-    try {
-      const records = await fetchSheetData(sheetUrl);
-      if (records.length === 0) throw new Error("Planilha inválida.");
-      
-      setData(records);
-      setConnectionSuccess(true);
-      
-      // Salvar e entrar
-      localStorage.setItem('betanalytics_sheet_url', sheetUrl);
-      setIsSetupMode(false);
-    } catch (err: any) {
-      setLoginError(err.message || "Erro ao conectar. Verifique o link.");
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
   const handleDemoMode = () => {
     setData(generateMockData());
     setConnectionSuccess(false);
-    setIsSetupMode(false);
+    setIsConfigOpen(false);
   };
 
-  // --- HANDLERS PARA O DASHBOARD ---
+  // --- HANDLERS ---
 
   const handleLogout = () => {
     if (window.confirm("Tem certeza que deseja desconectar? A planilha salva será removida deste navegador.")) {
@@ -137,9 +97,7 @@ export const Dashboard: React.FC = () => {
       setSheetUrl('');
       setData([]);
       setConnectionSuccess(false);
-      setIsSetupMode(true);
-      setIsConfigOpen(false);
-      setLoginPassword('');
+      setIsConfigOpen(true);
       // Limpa URL params se houver
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -153,20 +111,7 @@ export const Dashboard: React.FC = () => {
     
     if (!connectionError) {
       localStorage.setItem('betanalytics_sheet_url', sheetUrl);
-      setIsConfigOpen(false); 
       setConnectionSuccess(true);
-    }
-  };
-
-  const handleAdminAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminAuthInput === ADMIN_PASSWORD) {
-      setIsConfigOpen(true);
-      setShowAdminAuth(false);
-      setAdminAuthInput('');
-      setAuthError(false);
-    } else {
-      setAuthError(true);
     }
   };
 
@@ -246,82 +191,6 @@ export const Dashboard: React.FC = () => {
   const tipsters = Array.from(new Set(data.map(d => d.tipster))).filter(Boolean).sort();
   const contextKPIs = `Total Profit: ${kpis.totalProfit}, ROI: ${kpis.roi}%, WinRate: ${kpis.winRate}%`;
 
-  // --- RENDER: SETUP / LOGIN SCREEN ---
-  if (isSetupMode) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white max-w-lg w-full rounded-2xl shadow-xl p-8 border border-gray-200">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
-              <ShieldCheck className="w-8 h-8 text-indigo-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800">Configuração Inicial</h1>
-            <p className="text-slate-500 mt-2">
-              Conecte sua planilha Google Sheets para gerar o dashboard.
-            </p>
-          </div>
-
-          <form onSubmit={handleInitialSetup} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">URL da Planilha (Pública/Link)</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <LinkIcon className="h-5 w-5 text-gray-400" />
-                </div>
-                <input 
-                  type="text" 
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                  className="w-full pl-10 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 outline-none transition-all"
-                  placeholder="https://docs.google.com/spreadsheets/..."
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Senha de Administrador</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input 
-                  type="password" 
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full pl-10 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 outline-none transition-all"
-                  placeholder="Senha para liberar configuração"
-                />
-              </div>
-            </div>
-
-            {loginError && (
-              <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {loginError}
-              </div>
-            )}
-
-            <button 
-              type="submit"
-              disabled={isConnecting}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
-            >
-              {isConnecting ? 'Verificando e Conectando...' : <><LogIn className="w-5 h-5" /> Acessar Dashboard</>}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-            <button 
-              onClick={handleDemoMode}
-              className="text-sm text-gray-500 hover:text-indigo-600 font-medium transition-colors"
-            >
-              Não tem uma planilha? Ver modo demonstração
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // --- RENDER: DASHBOARD ---
   return (
     <div className="min-h-screen pb-12 bg-slate-50/50">
@@ -335,26 +204,26 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center gap-4">
                {/* Brand Card - Replaces simple logo */}
                <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-2 pr-5 shadow-sm hover:shadow-md transition-all group">
-                 <div className="h-12 w-12 rounded-lg overflow-hidden border border-gray-100 bg-gray-100 shrink-0 relative shadow-inner">
-                   {/* BANNER LOGO - Salve sua imagem como 'logo.png' na pasta do projeto */}
-                   <img 
-                     src="logo.png" 
-                     alt="Trader Lendário" 
-                     className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                     onError={(e) => {
-                       (e.target as HTMLImageElement).style.display = 'none';
-                       const fallback = document.getElementById('icon-fallback');
-                       if (fallback) fallback.style.display = 'flex';
-                     }}
-                   />
-                   <div id="icon-fallback" className="hidden h-full w-full items-center justify-center text-indigo-600">
-                      <LayoutDashboard className="w-6 h-6" />
-                   </div>
+                 <div className="h-12 w-12 rounded-lg overflow-hidden border border-gray-100 bg-gray-100 shrink-0 relative shadow-inner flex items-center justify-center">
+                   {/* BANNER LOGO */}
+                   {!logoError ? (
+                     <img 
+                       src="https://drive.google.com/thumbnail?id=1h6k-YRGt1ZoFwIpKa-7rPEzTqBCU2Kl3&sz=w1000" 
+                       alt="Trader Lendário" 
+                       className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                       referrerPolicy="no-referrer"
+                       onError={() => setLogoError(true)}
+                     />
+                   ) : (
+                     <div className="flex items-center justify-center text-indigo-600">
+                        <Settings className="w-6 h-6" />
+                     </div>
+                   )}
                  </div>
                  
                  <div className="flex flex-col">
-                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider leading-tight">Dashboard</span>
-                    <div className="flex items-center gap-1.5">
+                    {/* "Dashboard" text removed per request */}
+                    <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-base font-bold text-slate-800 leading-none">Trader Lendário</span>
                       <Verified className="w-4 h-4 text-blue-500 fill-blue-50" />
                     </div>
@@ -400,7 +269,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <span className={`hidden lg:flex text-xs font-medium px-3 py-1 rounded-full border items-center gap-1 ${connectionSuccess ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                 <FileSpreadsheet className="w-3 h-3" />
-                {connectionSuccess ? 'Live Data' : 'Demo Mode'}
+                {connectionSuccess ? 'Live Data' : 'Aguardando Dados'}
               </span>
               
               {connectionSuccess && (
@@ -422,23 +291,25 @@ export const Dashboard: React.FC = () => {
               </button>
 
               {/* Logout Button */}
-              <button 
-                onClick={handleLogout}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-all"
-                title="Sair / Resetar Sessão"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+              {connectionSuccess && (
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title="Desconectar Planilha"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              )}
 
               <div className="h-6 w-px bg-gray-200 mx-1"></div>
 
-              {/* Admin / Config Button */}
+              {/* Config Toggle Button */}
               <button 
-                onClick={() => isConfigOpen ? setIsConfigOpen(false) : setShowAdminAuth(true)}
+                onClick={() => setIsConfigOpen(!isConfigOpen)}
                 className={`p-2 rounded-full transition-colors ${isConfigOpen ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:text-gray-700'}`}
-                title="Configurações de Fonte de Dados"
+                title="Conectar Planilha"
               >
-                {isConfigOpen ? <Settings className="w-5 h-5" /> : <Lock className="w-4 h-4" />}
+                 <Settings className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -447,58 +318,34 @@ export const Dashboard: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         
-        {/* --- SECTION: CONFIGURATION AREA (Protected) --- */}
+        {/* --- SECTION: CONFIGURATION AREA --- */}
         
-        {/* Password Prompt Modal */}
-        {showAdminAuth && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" onClick={() => setShowAdminAuth(false)}>
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-indigo-600" /> 
-                  Área do Administrador
-                </h3>
-                <button onClick={() => setShowAdminAuth(false)}><X className="w-4 h-4 text-gray-400" /></button>
-              </div>
-              <form onSubmit={handleAdminAuth}>
-                <input 
-                  type="password" 
-                  autoFocus
-                  placeholder="Senha de Admin" 
-                  className={`w-full p-2 border rounded-lg mb-2 outline-none focus:ring-2 ${authError ? 'border-red-300 ring-red-100' : 'border-gray-300 ring-indigo-100'}`}
-                  value={adminAuthInput}
-                  onChange={e => setAdminAuthInput(e.target.value)}
-                />
-                {authError && <p className="text-red-500 text-xs mb-3">Senha incorreta.</p>}
-                <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm">
-                  Desbloquear Configurações
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Configuration Panel (Only visible if unlocked) */}
+        {/* Configuration Panel (Collapsible) */}
         {isConfigOpen && (
           <div className="bg-white rounded-xl shadow-lg p-5 mb-6 border border-indigo-100 ring-4 ring-indigo-50/50 animate-in slide-in-from-top-4 duration-300">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
-                <Settings className="w-4 h-4" /> Configuração da Fonte de Dados
+                <Settings className="w-4 h-4" /> Fonte de Dados
               </h3>
-              <button onClick={() => setIsConfigOpen(false)} className="text-xs text-indigo-500 hover:text-indigo-700 underline">
-                Fechar e Bloquear
+              <button onClick={() => setIsConfigOpen(false)} className="p-1 hover:bg-gray-100 rounded-full">
+                <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
             
             <form onSubmit={handleSaveConfiguration} className="flex flex-col md:flex-row gap-3">
               <div className="flex-1">
-                <input
-                  type="text"
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/SEU_ID_AQUI/..."
-                  className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <LinkIcon className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    placeholder="Cole aqui o link da sua Planilha Google (Pública)..."
+                    className="w-full pl-9 bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 outline-none transition-all"
+                  />
+                </div>
                 <p className="mt-2 text-xs text-slate-500">
                   A planilha deve estar pública ou compartilhada como "Qualquer pessoa com o link".
                 </p>
@@ -508,9 +355,18 @@ export const Dashboard: React.FC = () => {
                 disabled={isConnecting || !sheetUrl}
                 className="text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-medium rounded-lg text-sm px-6 py-2.5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm whitespace-nowrap h-fit"
               >
-                {isConnecting ? 'Verificando...' : <><Save className="w-4 h-4" /> Salvar & Carregar</>}
+                {isConnecting ? 'Verificando...' : <><Save className="w-4 h-4" /> Carregar Dados</>}
               </button>
             </form>
+
+             <div className="mt-4 pt-4 border-t border-gray-100">
+               <button 
+                  onClick={handleDemoMode}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline flex items-center gap-1"
+                >
+                  Não tem link? Carregar dados de exemplo (Demo)
+                </button>
+             </div>
             
             {connectionError && (
               <div className="mt-3 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
@@ -519,193 +375,202 @@ export const Dashboard: React.FC = () => {
             )}
             {connectionSuccess && (
               <div className="mt-3 p-3 bg-green-50 text-green-700 text-sm rounded-lg flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Conexão estabelecida com sucesso!
+                <CheckCircle className="w-4 h-4" /> Dados carregados com sucesso!
               </div>
             )}
           </div>
         )}
 
-        {/* Locked State Banner (Subtle indicator) */}
-        {!isConfigOpen && sheetUrl && !connectionError && (
-          <div className="mb-6 flex justify-end">
-             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-gray-200 rounded-full text-xs text-gray-400 shadow-sm">
-                <EyeOff className="w-3 h-3" /> Fonte de dados protegida
-             </div>
-          </div>
-        )}
-
         {/* --- SECTION: MAIN DASHBOARD --- */}
-
-        {/* Filter Bar */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-4 items-end border border-gray-100">
-          <div className="flex items-center gap-2 text-gray-500 mr-2 mb-2">
-            <Filter className="w-4 h-4" />
-            <span className="text-sm font-medium">Filtros:</span>
-          </div>
-          
-          <div className="flex flex-col">
-             <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Competição</label>
-             <select 
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[160px]"
-              value={filters.competition}
-              onChange={(e) => setFilters({...filters, competition: e.target.value})}
-            >
-              <option value="all">Todas Competições</option>
-              {competitions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-             <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Tipster</label>
-             <select 
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[160px]"
-              value={filters.tipster}
-              onChange={(e) => setFilters({...filters, tipster: e.target.value})}
-            >
-              <option value="all">Todos Tipsters</option>
-              {tipsters.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-             <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Resultado</label>
-             <select 
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[140px]"
-              value={filters.result}
-              onChange={(e) => setFilters({...filters, result: e.target.value})}
-            >
-              <option value="all">Todos Resultados</option>
-              <option value="WIN">Wins (Green)</option>
-              <option value="LOSS">Losses (Red)</option>
-              <option value="VOID">Devolvidas</option>
-            </select>
-          </div>
-
-          {/* New Date Filter */}
-          <div className="flex flex-col">
-             <label className="text-xs text-gray-500 font-medium mb-1 ml-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> Data Específica</label>
-             <input 
-              type="date"
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer"
-              value={filters.dateRange === 'all' ? '' : filters.dateRange}
-              onChange={(e) => setFilters({...filters, dateRange: e.target.value || 'all'})}
-            />
-          </div>
-          
-          {filters.dateRange !== 'all' && (
-             <button 
-               onClick={() => setFilters({...filters, dateRange: 'all'})}
-               className="text-xs text-indigo-600 hover:text-indigo-800 underline mb-3 ml-2"
-             >
-               Limpar Data
-             </button>
-          )}
-        </div>
-
-        {/* KPIs */}
-        <KPICards metrics={kpis} />
-
-        {/* Charts */}
-        <Charts data={filteredData} />
-
-        {/* Detailed Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-slate-800">Histórico de Entradas</h3>
-            <span className="text-sm text-gray-500">{filteredData.length} registros encontrados</span>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-500">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-100">
-                <tr>
-                  <th scope="col" className="px-6 py-3">Data</th>
-                  <th scope="col" className="px-6 py-3">Competição</th>
-                  <th scope="col" className="px-6 py-3">Evento</th>
-                  <th scope="col" className="px-6 py-3">Mercado</th>
-                  <th scope="col" className="px-6 py-3 text-center">Odds</th>
-                  <th scope="col" className="px-6 py-3 text-center">Stake</th>
-                  <th scope="col" className="px-6 py-3 text-center">Resultado</th>
-                  <th scope="col" className="px-6 py-3 text-right">Lucro</th>
-                  <th scope="col" className="px-6 py-3 text-center">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.map((bet) => (
-                  <tr 
-                    key={bet.id} 
-                    className="bg-white border-b hover:bg-gray-50 transition-colors cursor-pointer group"
-                    onClick={() => setSelectedBet(bet)}
-                  >
-                    <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
-                      {new Date(bet.date).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="px-6 py-4">{bet.competition}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">{bet.home}</span>
-                        <span className="text-xs text-gray-400">vs {bet.away}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs font-mono text-slate-600">
-                      <span className="bg-slate-100 px-2 py-1 rounded">{bet.market}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center font-bold text-slate-700">{bet.odds.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-center">{bet.units}u</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded text-xs font-bold
-                        ${bet.result === 'WIN' ? 'bg-green-100 text-green-700' : 
-                          bet.result === 'LOSS' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}
-                      `}>
-                        {bet.result}
-                      </span>
-                    </td>
-                    <td className={`px-6 py-4 text-right font-bold ${bet.profitUnits >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {bet.profitUnits > 0 ? '+' : ''}{bet.profitUnits}u
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button className="text-indigo-600 group-hover:bg-indigo-50 p-2 rounded-lg transition-all font-medium text-xs flex items-center justify-center mx-auto">
-                        Analisar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredData.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-gray-400">
-                      {loading ? 'Carregando dados...' : 'Nenhum registro encontrado com os filtros atuais.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Pagination Controls */}
-          {filteredData.length > 0 && (
-            <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex items-center justify-between">
-              <span className="text-xs text-gray-500">
-                Página {currentPage} de {totalPages || 1}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        
+        {data.length === 0 && !loading && !isConnecting && !connectionSuccess ? (
+             <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-300">
+                <FileSpreadsheet className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900">Nenhum dado carregado</h3>
+                <p className="text-gray-500 mt-1 max-w-sm mx-auto mb-6">
+                  Insira o link da sua planilha Google acima ou use o botão de configuração para conectar seus dados.
+                </p>
+                <button 
+                  onClick={() => setIsConfigOpen(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
                 >
-                  <ChevronLeft className="w-5 h-5 text-gray-600" />
+                  Conectar Planilha
                 </button>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-5 h-5 text-gray-600" />
-                </button>
+             </div>
+        ) : (
+          <>
+            {/* Filter Bar */}
+            <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-4 items-end border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-500 mr-2 mb-2">
+                <Filter className="w-4 h-4" />
+                <span className="text-sm font-medium">Filtros:</span>
               </div>
+              
+              <div className="flex flex-col">
+                 <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Competição</label>
+                 <select 
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[160px]"
+                  value={filters.competition}
+                  onChange={(e) => setFilters({...filters, competition: e.target.value})}
+                >
+                  <option value="all">Todas Competições</option>
+                  {competitions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                 <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Tipster</label>
+                 <select 
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[160px]"
+                  value={filters.tipster}
+                  onChange={(e) => setFilters({...filters, tipster: e.target.value})}
+                >
+                  <option value="all">Todos Tipsters</option>
+                  {tipsters.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                 <label className="text-xs text-gray-500 font-medium mb-1 ml-1">Resultado</label>
+                 <select 
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer min-w-[140px]"
+                  value={filters.result}
+                  onChange={(e) => setFilters({...filters, result: e.target.value})}
+                >
+                  <option value="all">Todos Resultados</option>
+                  <option value="WIN">Wins (Green)</option>
+                  <option value="LOSS">Losses (Red)</option>
+                  <option value="VOID">Devolvidas</option>
+                </select>
+              </div>
+
+              {/* New Date Filter */}
+              <div className="flex flex-col">
+                 <label className="text-xs text-gray-500 font-medium mb-1 ml-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> Data Específica</label>
+                 <input 
+                  type="date"
+                  className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none hover:bg-gray-100 transition-colors cursor-pointer"
+                  value={filters.dateRange === 'all' ? '' : filters.dateRange}
+                  onChange={(e) => setFilters({...filters, dateRange: e.target.value || 'all'})}
+                />
+              </div>
+              
+              {filters.dateRange !== 'all' && (
+                 <button 
+                   onClick={() => setFilters({...filters, dateRange: 'all'})}
+                   className="text-xs text-indigo-600 hover:text-indigo-800 underline mb-3 ml-2"
+                 >
+                   Limpar Data
+                 </button>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* KPIs */}
+            <KPICards metrics={kpis} />
+
+            {/* Charts */}
+            <Charts data={filteredData} />
+
+            {/* Detailed Table */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-slate-800">Histórico de Entradas</h3>
+                <span className="text-sm text-gray-500">{filteredData.length} registros encontrados</span>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                    <tr>
+                      <th scope="col" className="px-6 py-3">Data</th>
+                      <th scope="col" className="px-6 py-3">Competição</th>
+                      <th scope="col" className="px-6 py-3">Evento</th>
+                      <th scope="col" className="px-6 py-3">Mercado</th>
+                      <th scope="col" className="px-6 py-3 text-center">Odds</th>
+                      <th scope="col" className="px-6 py-3 text-center">Stake</th>
+                      <th scope="col" className="px-6 py-3 text-center">Resultado</th>
+                      <th scope="col" className="px-6 py-3 text-right">Lucro</th>
+                      <th scope="col" className="px-6 py-3 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedData.map((bet) => (
+                      <tr 
+                        key={bet.id} 
+                        className="bg-white border-b hover:bg-gray-50 transition-colors cursor-pointer group"
+                        onClick={() => setSelectedBet(bet)}
+                      >
+                        <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                          {new Date(bet.date).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="px-6 py-4">{bet.competition}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-700">{bet.home}</span>
+                            <span className="text-xs text-gray-400">vs {bet.away}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-600">
+                          <span className="bg-slate-100 px-2 py-1 rounded">{bet.market}</span>
+                        </td>
+                        <td className="px-6 py-4 text-center font-bold text-slate-700">{bet.odds.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-center">{bet.units}u</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-bold
+                            ${bet.result === 'WIN' ? 'bg-green-100 text-green-700' : 
+                              bet.result === 'LOSS' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}
+                          `}>
+                            {bet.result}
+                          </span>
+                        </td>
+                        <td className={`px-6 py-4 text-right font-bold ${bet.profitUnits >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {bet.profitUnits > 0 ? '+' : ''}{bet.profitUnits}u
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button className="text-indigo-600 group-hover:bg-indigo-50 p-2 rounded-lg transition-all font-medium text-xs flex items-center justify-center mx-auto">
+                            Analisar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredData.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-12 text-center text-gray-400">
+                          {loading ? 'Carregando dados...' : 'Nenhum registro encontrado com os filtros atuais.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Pagination Controls */}
+              {filteredData.length > 0 && (
+                <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    Página {currentPage} de {totalPages || 1}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Analysis Modal */}
