@@ -7,6 +7,7 @@ import { Charts } from './Charts';
 import { AnalysisModal } from './AnalysisModal';
 
 const ITEMS_PER_PAGE = 20; // Quantidade de itens por página
+const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1LleQLKL5oAoBPAITP_JcGkN4EBYLtLAbsJW8L8tSwaI/edit?gid=2017842059#gid=2017842059";
 
 export const Dashboard: React.FC = () => {
   // Application State
@@ -21,7 +22,7 @@ export const Dashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   // Sheet Connection State
-  const [sheetUrl, setSheetUrl] = useState('');
+  const [sheetUrl, setSheetUrl] = useState(DEFAULT_SHEET_URL);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionSuccess, setConnectionSuccess] = useState(false);
@@ -37,7 +38,7 @@ export const Dashboard: React.FC = () => {
     result: 'all'
   });
 
-  // 1. Initial Load: Check URL Params OR LocalStorage
+  // 1. Initial Load: Check URL Params OR LocalStorage OR Default
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedUrl = params.get('sheet');
@@ -50,9 +51,9 @@ export const Dashboard: React.FC = () => {
       setSheetUrl(storedUrl);
       loadData(storedUrl);
     } else {
-      // Se não houver dados, abre o menu de configuração automaticamente e para o loading
-      setIsConfigOpen(true);
-      setLoading(false);
+      // Carrega a URL padrão automaticamente
+      setSheetUrl(DEFAULT_SHEET_URL);
+      loadData(DEFAULT_SHEET_URL);
     }
   }, []);
 
@@ -72,7 +73,7 @@ export const Dashboard: React.FC = () => {
       setConnectionError(err.message || "Erro ao carregar dados.");
       setConnectionSuccess(false);
       setLoading(false);
-      setIsConfigOpen(true); // Mantém aberto em caso de erro
+      setIsConfigOpen(true); // Mantém aberto em caso de erro para o usuário ver/tentar outra
     } finally {
       setIsConnecting(false);
     }
@@ -92,7 +93,7 @@ export const Dashboard: React.FC = () => {
   // --- HANDLERS ---
 
   const handleLogout = () => {
-    if (window.confirm("Tem certeza que deseja desconectar? A planilha salva será removida deste navegador.")) {
+    if (window.confirm("Tem certeza que deseja desconectar?")) {
       localStorage.removeItem('betanalytics_sheet_url');
       setSheetUrl('');
       setData([]);
@@ -119,11 +120,17 @@ export const Dashboard: React.FC = () => {
     if (sheetUrl) {
       loadData(sheetUrl);
     } else {
-      setLoading(true);
-      setTimeout(() => {
-        setData(generateMockData());
-        setLoading(false);
-      }, 600);
+      // Se não tiver sheetUrl (ex: demo mode ou erro), recarrega
+      if (data.length > 0 && !connectionSuccess) {
+         // Se estiver em demo, só simula loading
+         setLoading(true);
+         setTimeout(() => {
+            setLoading(false);
+         }, 600);
+      } else {
+         // Tenta carregar o padrão se estiver vazio
+         loadData(DEFAULT_SHEET_URL);
+      }
     }
   };
 
@@ -222,7 +229,6 @@ export const Dashboard: React.FC = () => {
                  </div>
                  
                  <div className="flex flex-col">
-                    {/* "Dashboard" text removed per request */}
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-base font-bold text-slate-800 leading-none">Trader Lendário</span>
                       <Verified className="w-4 h-4 text-blue-500 fill-blue-50" />
@@ -269,7 +275,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <span className={`hidden lg:flex text-xs font-medium px-3 py-1 rounded-full border items-center gap-1 ${connectionSuccess ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                 <FileSpreadsheet className="w-3 h-3" />
-                {connectionSuccess ? 'Live Data' : 'Aguardando Dados'}
+                {connectionSuccess ? 'Live Data' : 'Carregando...'}
               </span>
               
               {connectionSuccess && (
@@ -388,13 +394,13 @@ export const Dashboard: React.FC = () => {
                 <FileSpreadsheet className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900">Nenhum dado carregado</h3>
                 <p className="text-gray-500 mt-1 max-w-sm mx-auto mb-6">
-                  Insira o link da sua planilha Google acima ou use o botão de configuração para conectar seus dados.
+                  Não foi possível conectar com a planilha padrão. Tente recarregar ou verifique a conexão.
                 </p>
                 <button 
                   onClick={() => setIsConfigOpen(true)}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
                 >
-                  Conectar Planilha
+                  Configurar Manualmente
                 </button>
              </div>
         ) : (

@@ -139,7 +139,8 @@ export const fetchSheetData = async (url: string): Promise<BetRecord[]> => {
     let csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
     
     // Preserve GID if present (to target specific tab)
-    const gidMatch = url.match(/[#&]gid=([0-9]+)/);
+    // Updated regex to support ?, &, or # before gid
+    const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
     if (gidMatch && gidMatch[1]) {
       csvUrl += `&gid=${gidMatch[1]}`;
     }
