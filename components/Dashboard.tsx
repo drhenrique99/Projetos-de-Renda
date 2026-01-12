@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LayoutDashboard, Filter, RefreshCcw, FileSpreadsheet, Link as LinkIcon, AlertCircle, CheckCircle, Lock, Settings, Save, X, EyeOff, Share2, LogIn, ShieldCheck, LogOut, Youtube, Instagram, Send, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Filter, RefreshCcw, FileSpreadsheet, Link as LinkIcon, AlertCircle, CheckCircle, Lock, Settings, Save, X, EyeOff, Share2, LogIn, ShieldCheck, LogOut, Youtube, Instagram, Send, Calendar, ChevronLeft, ChevronRight, Verified } from 'lucide-react';
 import { BetRecord, FilterState } from '../types';
 import { generateMockData, calculateKPIs, fetchSheetData } from '../services/dataService';
 import { KPICards } from './KPICards';
@@ -331,29 +331,40 @@ export const Dashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center h-auto md:h-16 py-2 md:py-0 gap-3 md:gap-0">
             
-            {/* Left Side: Brand Image & Socials */}
+            {/* Left Side: Brand Card & Socials */}
             <div className="flex items-center gap-4">
-               {/* BANNER LOGO - Salve sua imagem como 'logo.png' na pasta do projeto */}
-               <img 
-                 src="logo.png" 
-                 alt="Trader Lendário" 
-                 className="h-10 md:h-12 w-auto object-contain rounded-md"
-                 onError={(e) => {
-                   (e.target as HTMLImageElement).style.display = 'none';
-                   // Fallback visual se a imagem não carregar
-                   const fallback = document.getElementById('logo-fallback');
-                   if (fallback) fallback.style.display = 'flex';
-                 }}
-               />
-               <div id="logo-fallback" className="hidden flex items-center gap-2 text-slate-800 font-bold text-lg">
-                  <LayoutDashboard className="w-6 h-6 text-indigo-600" />
-                  Trader Lendário
+               {/* Brand Card - Replaces simple logo */}
+               <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-2 pr-5 shadow-sm hover:shadow-md transition-all group">
+                 <div className="h-12 w-12 rounded-lg overflow-hidden border border-gray-100 bg-gray-100 shrink-0 relative shadow-inner">
+                   {/* BANNER LOGO - Salve sua imagem como 'logo.png' na pasta do projeto */}
+                   <img 
+                     src="logo.png" 
+                     alt="Trader Lendário" 
+                     className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                     onError={(e) => {
+                       (e.target as HTMLImageElement).style.display = 'none';
+                       const fallback = document.getElementById('icon-fallback');
+                       if (fallback) fallback.style.display = 'flex';
+                     }}
+                   />
+                   <div id="icon-fallback" className="hidden h-full w-full items-center justify-center text-indigo-600">
+                      <LayoutDashboard className="w-6 h-6" />
+                   </div>
+                 </div>
+                 
+                 <div className="flex flex-col">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider leading-tight">Dashboard</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base font-bold text-slate-800 leading-none">Trader Lendário</span>
+                      <Verified className="w-4 h-4 text-blue-500 fill-blue-50" />
+                    </div>
+                 </div>
                </div>
 
                {/* Divider */}
                <div className="hidden md:block h-8 w-px bg-gray-200 mx-2"></div>
 
-               {/* Social Icons - Colorful & Updated Links */}
+               {/* Social Icons */}
                <div className="flex items-center gap-3">
                  <a 
                    href="https://www.youtube.com/@TRADERLENDARIO_" 
